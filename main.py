@@ -1,96 +1,101 @@
 import os
-from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# ⚠️ مهم: ضع التوكن في Railway باسم BOT_TOKEN
 TOKEN = os.getenv("8763108829:AAHXLxqTlB8xJRjr2_LZxwYUwPUGtJbFIdM")
 
 CONTACT_PHONE = "967778160500"
 CONTACT_TELEGRAM = "https://t.me/fan_al_prompt"
 WEBSITE_URL = "https://al-dira.com"
 
-# ---------------------------
-# STATE
-# ---------------------------
 user_state = {}
 
-# ---------------------------
-# QUESTIONS
-# ---------------------------
 QUESTIONS = [
-    "📄 نوع الوثيقة:",
-    "📍 موقع العقار:",
-    "👤 صفة البائع:",
-    "📑 الأوراق الرسمية:",
-    "🧬 هل الأرض موروثة:",
-    "👥 وجود شهود:",
-    "🏗️ داخل مخطط:",
-    "🔁 بيع سابق:",
-    "⚠️ نزاع سابق:",
-    "💰 سبب الشراء:"
+    "📄 نوع الوثيقة",
+    "📍 موقع العقار",
+    "👤 صفة البائع",
+    "📑 الأوراق الرسمية",
+    "🧬 هل الأرض موروثة",
+    "👥 وجود شهود",
+    "🏗️ داخل مخطط",
+    "🔁 بيع سابق",
+    "⚠️ نزاع سابق",
+    "💰 سبب الشراء"
 ]
 
-# ---------------------------
-# OPTIONS (Buttons)
-# ---------------------------
 OPTIONS = [
     ["عقد", "بصيرة", "ملكية"],
     ["مدينة", "ريف"],
     ["مالك", "وريث", "وسيط"],
-    ["نعم", "لا", "غير متأكد"],
     ["نعم", "لا"],
     ["نعم", "لا"],
-    ["نعم", "لا", "غير معروف"],
-    ["نعم", "لا", "غير معروف"],
-    ["نعم", "لا", "لا أعلم"],
+    ["نعم", "لا"],
+    ["نعم", "لا"],
+    ["نعم", "لا"],
+    ["نعم", "لا"],
     ["سكن", "استثمار", "بيع سريع"]
 ]
 
-# ---------------------------
-# NORMALIZE INPUT
-# ---------------------------
-def normalize(text: str):
-    t = text.strip().lower()
+# ---------------- START ----------------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
 
-    if t in ["عقد", "بصيرة", "ملكية", "مالك", "وريث", "وسيط",
-             "نعم", "لا", "غير متأكد", "غير معروف", "لا أعلم",
-             "سكن", "استثمار", "بيع سريع"]:
-        return t
+    user_state[user_id] = {
+        "step": 0,
+        "data": {}
+    }
 
-    return t
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 بدء تحليل العقار", callback_data="start")]
+    ])
 
-# ---------------------------
-# RISK ENGINE
-# ---------------------------
-def calculate_risk(data: dict):
+    await update.message.reply_text(
+        "🛡️ مرحبًا بك في نظام الدرع العقاري\n\n"
+        "هذا النظام يقوم بتحليل المخاطر العقارية عبر 10 أسئلة دقيقة.\n"
+        "اضغط للبدء 👇",
+        reply_markup=keyboard
+    )
+
+# ---------------- SEND QUESTION ----------------
+async def send_question(message, user_id):
+    step = user_state[user_id]["step"]
+
+    keyboard = [
+        [InlineKeyboardButton(opt, callback_data=opt)]
+        for opt in OPTIONS[step]
+    ]
+
+    await message.reply_text(
+        f"🛡️ {QUESTIONS[step]}",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# ---------------- RISK ENGINE ----------------
+def calculate_risk(data):
     score = 50
     reasons = []
 
-    doc = data.get("doc", "")
-    seller = data.get("seller", "")
-
-    if doc == "بصيرة":
+    if data.get("doc") == "بصيرة":
         score += 15
-        reasons.append("وثيقة بصيرة تحتاج تحقق قانوني")
+        reasons.append("وثيقة بصيرة تحتاج تحقق")
 
-    elif doc == "عقد":
+    elif data.get("doc") == "عقد":
         score -= 10
         reasons.append("عقد رسمي يقلل المخاطر")
 
-    elif doc == "ملكية":
+    elif data.get("doc") == "ملكية":
         score -= 25
         reasons.append("صك ملكية = أمان أعلى")
 
-    if seller == "وريث":
+    if data.get("seller") == "وريث":
         score += 25
-        reasons.append("بيع ورثة = احتمال نزاع")
+        reasons.append("بيع ورثة = خطر نزاع")
 
-    elif seller == "وسيط":
+    elif data.get("seller") == "وسيط":
         score += 10
-        reasons.append("وسيط = يحتاج تحقق إضافي")
+        reasons.append("وسيط يحتاج تحقق")
 
-    elif seller == "مالك":
+    elif data.get("seller") == "مالك":
         score -= 15
         reasons.append("مالك مباشر = أمان أعلى")
 
@@ -115,58 +120,41 @@ def calculate_risk(data: dict):
 
     return score, level, reasons
 
-# ---------------------------
-# START
-# ---------------------------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
+# ---------------- CALLBACK ----------------
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    user_state[user_id] = {
-        "step": 0,
-        "data": {},
-        "started_at": datetime.now()
-    }
+    user_id = query.from_user.id
 
-    await update.message.reply_text(
-        "🛡️ مرحبًا بك في نظام الدرع العقاري\n\n"
-        "سنقوم بتحليل العقار عبر 10 أسئلة دقيقة للحصول على تقييم احترافي.\n\n"
-        + QUESTIONS[0]
-    )
-
-# ---------------------------
-# HANDLE MESSAGES
-# ---------------------------
-async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
+    # بدء التحليل
+    if query.data == "start":
+        await send_question(query.message, user_id)
+        return
 
     if user_id not in user_state:
-        user_state[user_id] = {"step": 0, "data": {}}
+        return
 
     state = user_state[user_id]
     step = state["step"]
 
-    if step >= len(QUESTIONS):
-        return
+    value = query.data
 
-    text = normalize(update.message.text)
+    keys = ["doc","location","seller","papers","inherited",
+            "witnesses","plan","resale","dispute","purpose"]
 
-    keys = ["doc", "location", "seller", "papers", "inherited",
-            "witnesses", "plan", "resale", "dispute", "purpose"]
-
-    state["data"][keys[step]] = text
+    state["data"][keys[step]] = value
     state["step"] += 1
 
-    # next question
     if state["step"] < len(QUESTIONS):
-        await update.message.reply_text(QUESTIONS[state["step"]])
+        await send_question(query.message, user_id)
         return
 
-    # final analysis
     score, level, reasons = calculate_risk(state["data"])
 
-    report = f"""🛡️ تقرير الدرع العقاري V4
+    report = f"""🛡️ تقرير الدرع العقاري
 
-📊 درجة المخاطر: {score}/100
+📊 المخاطر: {score}/100
 ⚖️ التصنيف: {level}
 
 📌 التحليل:
@@ -175,33 +163,24 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for r in reasons:
         report += f"- {r}\n"
 
-    keyboard = [
+    keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📞 واتساب", url=f"https://wa.me/{CONTACT_PHONE}")],
         [InlineKeyboardButton("💬 تيليجرام", url=CONTACT_TELEGRAM)],
         [InlineKeyboardButton("🌐 الموقع", url=WEBSITE_URL)]
-    ]
+    ])
 
-    await update.message.reply_text(
-        report,
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await query.message.reply_text(report, reply_markup=keyboard)
 
     user_state.pop(user_id)
 
-# ---------------------------
-# MAIN
-# ---------------------------
+# ---------------- MAIN ----------------
 def main():
-    if not TOKEN:
-        print("❌ BOT_TOKEN غير موجود في البيئة")
-        return
-
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+    app.add_handler(CallbackQueryHandler(button_handler))
 
-    print("🛡️ AL-DIR'A V4 RUNNING...")
+    print("🛡️ SYSTEM RUNNING...")
     app.run_polling()
 
 if __name__ == "__main__":
