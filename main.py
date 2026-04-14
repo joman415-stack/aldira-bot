@@ -3,8 +3,7 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# ⚠️ مهم: ضع التوكن في Railway باسم BOT_TOKEN
-TOKEN = os.getenv "8763108829:AAHXLxqTlB8xJRjr2_LZxwYUwPUGtJbFIdM"
+TOKEN = os.getenv("8763108829:AAHXLxqTlB8xJRjr2_LZxwYUwPUGtJbFIdM")
 
 CONTACT_PHONE = "967778160500"
 CONTACT_TELEGRAM = "https://t.me/fan_al_prompt"
@@ -16,23 +15,23 @@ WEBSITE_URL = "https://al-dira.com"
 user_state = {}
 
 # ---------------------------
-# QUESTIONS
+# FLOW QUESTIONS
 # ---------------------------
 QUESTIONS = [
-    "📄 نوع الوثيقة:",
-    "📍 موقع العقار:",
-    "👤 صفة البائع:",
-    "📑 الأوراق الرسمية:",
-    "🧬 هل الأرض موروثة:",
-    "👥 وجود شهود:",
-    "🏗️ داخل مخطط:",
-    "🔁 بيع سابق:",
-    "⚠️ نزاع سابق:",
-    "💰 سبب الشراء:"
+    "📄 نوع الوثيقة",
+    "📍 موقع العقار",
+    "👤 صفة البائع",
+    "📑 الأوراق الرسمية",
+    "🧬 هل الأرض موروثة",
+    "👥 وجود شهود",
+    "🏗️ داخل مخطط",
+    "🔁 بيع سابق",
+    "⚠️ نزاع سابق",
+    "💰 سبب الشراء"
 ]
 
 # ---------------------------
-# OPTIONS (Buttons)
+# OPTIONS (STRICT BUTTON MODE)
 # ---------------------------
 OPTIONS = [
     ["عقد", "بصيرة", "ملكية"],
@@ -48,27 +47,44 @@ OPTIONS = [
 ]
 
 # ---------------------------
-# NORMALIZE INPUT
+# START
 # ---------------------------
-def normalize(text: str):
-    t = text.strip().lower()
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
 
-    if t in ["عقد", "بصيرة", "ملكية", "مالك", "وريث", "وسيط",
-             "نعم", "لا", "غير متأكد", "غير معروف", "لا أعلم",
-             "سكن", "استثمار", "بيع سريع"]:
-        return t
+    user_state[user_id] = {
+        "step": 0,
+        "data": {},
+        "started_at": datetime.now()
+    }
 
-    return t
+    await send_question(update, user_id)
 
 # ---------------------------
-# RISK ENGINE
+# SEND QUESTION (BUTTON ONLY)
 # ---------------------------
-def calculate_risk(data: dict):
+async def send_question(update, user_id):
+    step = user_state[user_id]["step"]
+
+    keyboard = [
+        [InlineKeyboardButton(opt, callback_data=opt)]
+        for opt in OPTIONS[step]
+    ]
+
+    await update.message.reply_text(
+        f"🛡️ {QUESTIONS[step]}",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# ---------------------------
+# RISK ENGINE V6
+# ---------------------------
+def calculate_risk(data):
     score = 50
     reasons = []
 
-    doc = data.get("doc", "")
-    seller = data.get("seller", "")
+    doc = data.get("doc")
+    seller = data.get("seller")
 
     if doc == "بصيرة":
         score += 15
@@ -80,11 +96,11 @@ def calculate_risk(data: dict):
 
     elif doc == "ملكية":
         score -= 25
-        reasons.append("صك ملكية = أمان أعلى")
+        reasons.append("صك ملكية = أمان عالي")
 
     if seller == "وريث":
         score += 25
-        reasons.append("بيع ورثة = احتمال نزاع")
+        reasons.append("بيع ورثة = خطر نزاع")
 
     elif seller == "وسيط":
         score += 10
@@ -116,57 +132,38 @@ def calculate_risk(data: dict):
     return score, level, reasons
 
 # ---------------------------
-# START
+# HANDLE CALLBACK BUTTONS ONLY
 # ---------------------------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    user_state[user_id] = {
-        "step": 0,
-        "data": {},
-        "started_at": datetime.now()
-    }
-
-    await update.message.reply_text(
-        "🛡️ مرحبًا بك في نظام الدرع العقاري\n\n"
-        "سنقوم بتحليل العقار عبر 10 أسئلة دقيقة للحصول على تقييم احترافي.\n\n"
-        + QUESTIONS[0]
-    )
-
-# ---------------------------
-# HANDLE MESSAGES
-# ---------------------------
-async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
+    user_id = query.from_user.id
 
     if user_id not in user_state:
-        user_state[user_id] = {"step": 0, "data": {}}
+        return
 
     state = user_state[user_id]
     step = state["step"]
 
-    if step >= len(QUESTIONS):
-        return
+    value = query.data
 
-    text = normalize(update.message.text)
+    keys = ["doc","location","seller","papers","inherited",
+            "witnesses","plan","resale","dispute","purpose"]
 
-    keys = ["doc", "location", "seller", "papers", "inherited",
-            "witnesses", "plan", "resale", "dispute", "purpose"]
-
-    state["data"][keys[step]] = text
+    state["data"][keys[step]] = value
     state["step"] += 1
 
-    # next question
     if state["step"] < len(QUESTIONS):
-        await update.message.reply_text(QUESTIONS[state["step"]])
+        await send_question(query, user_id)
         return
 
-    # final analysis
+    # FINAL REPORT
     score, level, reasons = calculate_risk(state["data"])
 
-    report = f"""🛡️ تقرير الدرع العقاري V4
+    report = f"""🛡️ تقرير الدرع العقاري V6
 
-📊 درجة المخاطر: {score}/100
+📊 المخاطر: {score}/100
 ⚖️ التصنيف: {level}
 
 📌 التحليل:
@@ -175,16 +172,13 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for r in reasons:
         report += f"- {r}\n"
 
-    keyboard = [
+    keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📞 واتساب", url=f"https://wa.me/{CONTACT_PHONE}")],
         [InlineKeyboardButton("💬 تيليجرام", url=CONTACT_TELEGRAM)],
         [InlineKeyboardButton("🌐 الموقع", url=WEBSITE_URL)]
-    ]
+    ])
 
-    await update.message.reply_text(
-        report,
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await query.message.reply_text(report, reply_markup=keyboard)
 
     user_state.pop(user_id)
 
@@ -192,16 +186,14 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MAIN
 # ---------------------------
 def main():
-    if not TOKEN:
-        print("❌ BOT_TOKEN غير موجود في البيئة")
-        return
-
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, button_handler))
 
-    print("🛡️ AL-DIR'A V4 RUNNING...")
+    print("🛡️ AL-DIR'A V6 RUNNING...")
     app.run_polling()
 
 if __name__ == "__main__":
