@@ -1,93 +1,127 @@
 import os
-from telegram import Update
+from datetime import datetime
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "8763108829:AAGgiw58wSFbcwwHg-VrBWckDE6V9ZQ_t-U"
+TOKEN = os.getenv("8763108829:AAGgiw58wSFbcwwHg-VrBWckDE6V9ZQ_t-U")
 
+CONTACT_PHONE = "967778160500"
+CONTACT_TELEGRAM = "https://t.me/fan_al_prompt"
+WEBSITE_URL = "https://al-dira.com"
+
+# ---------------------------
+# STATE
+# ---------------------------
 user_state = {}
 
+# ---------------------------
+# FLOW QUESTIONS
+# ---------------------------
 QUESTIONS = [
-    "📄 ما نوع الوثيقة؟ (عقد / بصيرة / ملكية / غير معروف)",
-    "📍 ما موقع العقار؟",
-    "👤 ما صفة البائع؟ (مالك / وريث / وسيط)",
-    "📑 هل توجد أوراق رسمية؟ (نعم / لا / غير متأكد)",
-    "🧬 هل الأرض موروثة؟ (نعم / لا)",
-    "👥 هل يوجد شهود؟ (نعم / لا)",
-    "🏗️ هل الأرض داخل مخطط معتمد؟ (نعم / لا / غير معروف)",
-    "🔁 هل تم البيع أكثر من مرة؟ (نعم / لا / غير معروف)",
-    "⚠️ هل يوجد نزاع سابق؟ (نعم / لا / لا أعلم)",
-    "💰 ما سبب الشراء؟ (سكن / استثمار / بيع سريع)"
+    "📄 نوع الوثيقة",
+    "📍 موقع العقار",
+    "👤 صفة البائع",
+    "📑 الأوراق الرسمية",
+    "🧬 هل الأرض موروثة",
+    "👥 وجود شهود",
+    "🏗️ داخل مخطط",
+    "🔁 بيع سابق",
+    "⚠️ نزاع سابق",
+    "💰 سبب الشراء"
 ]
 
+# ---------------------------
+# OPTIONS (STRICT BUTTON MODE)
+# ---------------------------
+OPTIONS = [
+    ["عقد", "بصيرة", "ملكية"],
+    ["مدينة", "ريف"],
+    ["مالك", "وريث", "وسيط"],
+    ["نعم", "لا", "غير متأكد"],
+    ["نعم", "لا"],
+    ["نعم", "لا"],
+    ["نعم", "لا", "غير معروف"],
+    ["نعم", "لا", "غير معروف"],
+    ["نعم", "لا", "لا أعلم"],
+    ["سكن", "استثمار", "بيع سريع"]
+]
 
-def normalize(text: str):
-    t = text.strip().lower()
+# ---------------------------
+# START
+# ---------------------------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
 
-    # صفة البائع
-    if "وريث" in t:
-        return "2"
-    if "مالك" in t:
-        return "1"
-    if "وسيط" in t:
-        return "3"
+    user_state[user_id] = {
+        "step": 0,
+        "data": {},
+        "started_at": datetime.now()
+    }
 
-    # نعم / لا
-    if "نعم" in t:
-        return "1"
-    if "لا" in t:
-        return "2"
+    await send_question(update, user_id)
 
-    if "لا أعلم" in t or "غير" in t:
-        return "3"
+# ---------------------------
+# SEND QUESTION (BUTTON ONLY)
+# ---------------------------
+async def send_question(update, user_id):
+    step = user_state[user_id]["step"]
 
-    return t
+    keyboard = [
+        [InlineKeyboardButton(opt, callback_data=opt)]
+        for opt in OPTIONS[step]
+    ]
 
+    await update.message.reply_text(
+        f"🛡️ {QUESTIONS[step]}",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
-def calculate_risk(data: dict):
+# ---------------------------
+# RISK ENGINE V6
+# ---------------------------
+def calculate_risk(data):
     score = 50
     reasons = []
 
-    # الوثيقة
-    doc = data.get("doc", "")
+    doc = data.get("doc")
+    seller = data.get("seller")
 
-    if "بصيرة" in doc:
+    if doc == "بصيرة":
         score += 15
-        reasons.append("وثيقة بصيرة تحتاج تحقق")
+        reasons.append("وثيقة بصيرة تحتاج تحقق قانوني")
 
-    if "عقد" in doc:
+    elif doc == "عقد":
         score -= 10
         reasons.append("عقد رسمي يقلل المخاطر")
 
-    if "ملكية" in doc:
-        score -= 20
-        reasons.append("صك ملكية = أمان أعلى")
+    elif doc == "ملكية":
+        score -= 25
+        reasons.append("صك ملكية = أمان عالي")
 
-    # البائع
-    seller = data.get("seller", "")
-
-    if seller == "2":
+    if seller == "وريث":
         score += 25
-        reasons.append("ورثة = احتمال نزاع")
+        reasons.append("بيع ورثة = خطر نزاع")
 
-    if seller == "3":
+    elif seller == "وسيط":
         score += 10
-        reasons.append("وسيط = يحتاج تحقق")
+        reasons.append("وسيط = يحتاج تحقق إضافي")
 
-    if seller == "1":
+    elif seller == "مالك":
         score -= 15
         reasons.append("مالك مباشر = أمان أعلى")
 
-    # نزاع
-    if data.get("dispute") == "1":
+    if data.get("papers") == "لا":
+        score += 20
+        reasons.append("غياب أوراق رسمية")
+
+    if data.get("dispute") == "نعم":
         score += 25
         reasons.append("وجود نزاع سابق")
 
-    # أوراق
-    if data.get("papers") == "2":
+    if data.get("plan") == "لا":
         score += 15
-        reasons.append("عدم وجود أوراق رسمية")
+        reasons.append("خارج المخطط")
 
-    # التصنيف
     if score >= 75:
         level = "🚨 مرتفع"
     elif score >= 45:
@@ -97,88 +131,70 @@ def calculate_risk(data: dict):
 
     return score, level, reasons
 
+# ---------------------------
+# HANDLE CALLBACK BUTTONS ONLY
+# ---------------------------
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    user_state[user_id] = {"step": 0, "data": {}}
-
-    await update.message.reply_text(
-        "🛡️ مرحبًا بك في نظام الدرع العقاري\n\n"
-        "سنجمع بيانات العقار عبر 10 أسئلة منظمة للحصول على تحليل دقيق.\n\n"
-        + QUESTIONS[0]
-    )
-
-
-async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    text = normalize(update.message.text)
+    user_id = query.from_user.id
 
     if user_id not in user_state:
-        user_state[user_id] = {"step": 0, "data": {}}
+        return
 
     state = user_state[user_id]
     step = state["step"]
 
-    if step >= len(QUESTIONS):
-        return
+    value = query.data
 
-    # حفظ البيانات حسب المرحلة
-    if step == 0:
-        state["data"]["doc"] = text
-    elif step == 1:
-        state["data"]["location"] = text
-    elif step == 2:
-        state["data"]["seller"] = text
-    elif step == 3:
-        state["data"]["papers"] = text
-    elif step == 4:
-        state["data"]["inherited"] = text
-    elif step == 5:
-        state["data"]["witnesses"] = text
-    elif step == 6:
-        state["data"]["plan"] = text
-    elif step == 7:
-        state["data"]["resale"] = text
-    elif step == 8:
-        state["data"]["dispute"] = text
-    elif step == 9:
-        state["data"]["purpose"] = text
+    keys = ["doc","location","seller","papers","inherited",
+            "witnesses","plan","resale","dispute","purpose"]
 
+    state["data"][keys[step]] = value
     state["step"] += 1
 
-    # استمرار الأسئلة
     if state["step"] < len(QUESTIONS):
-        await update.message.reply_text(QUESTIONS[state["step"]])
+        await send_question(query, user_id)
         return
 
-    # التحليل النهائي
+    # FINAL REPORT
     score, level, reasons = calculate_risk(state["data"])
 
-    report = f"""🛡️ تقرير الدرع العقاري
+    report = f"""🛡️ تقرير الدرع العقاري V6
 
-📊 درجة المخاطر: {score}/100
+📊 المخاطر: {score}/100
 ⚖️ التصنيف: {level}
 
-📌 الأسباب:
+📌 التحليل:
 """
 
     for r in reasons:
         report += f"- {r}\n"
 
-    await update.message.reply_text(report)
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📞 واتساب", url=f"https://wa.me/{CONTACT_PHONE}")],
+        [InlineKeyboardButton("💬 تيليجرام", url=CONTACT_TELEGRAM)],
+        [InlineKeyboardButton("🌐 الموقع", url=WEBSITE_URL)]
+    ])
+
+    await query.message.reply_text(report, reply_markup=keyboard)
 
     user_state.pop(user_id)
 
-
+# ---------------------------
+# MAIN
+# ---------------------------
 def main():
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, button_handler))
 
-    print("🛡️ AL-DIR'A CLEAN SYSTEM RUNNING...")
+    print("🛡️ AL-DIR'A V6 RUNNING...")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
