@@ -11,7 +11,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TOKEN = "8763108829:AAEp6Hj9vnfm8KBW9xoVfFd5ps3uwYVvYfI"
+# 🔥 التوكن الجديد كما طلبت
+TOKEN = "8763108829:AAEFrXe8Zw6l96Of3NtcKkkXTfOWjmqFbtI"
 
 CONTACT_PHONE = "967778160500"
 CONTACT_TELEGRAM = "https://t.me/fan_al_prompt"
