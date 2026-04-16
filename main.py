@@ -1,170 +1,95 @@
 import logging
-import os
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# 1. إعداد السجلات
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# إعداد السجلات لمراقبة الأداء
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-# ⚠️ هام: لا تضع التوكن داخل الكود أبداً!
-# استخدم متغير بيئة بدلاً من ذلك
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8763108829:AAGyU_7wTKMLGHz8_EYoUbudQ0ITYGXYNDI")
+TOKEN = "8763108829:AAGyU_7wTKMLGHz8_EYoUbudQ0ITYGXYNDI"
+# البيانات المحدث
+CONTACT_PHONE = "96777160500"
+CONTACT_TELEGRAM = "https://t.me/fan_al_prompt"
+WEBSITE_URL = "https://sites.google.com/view/aldira-yemen"
 
-# 2. لوحة التحكم الرئيسية
+# القائمة الرئيسية
 MAIN_MENU = [
-    ["📊 1) تحليل — استشارة — توجيه"],
-    ["🤖 2) تعلم الذكاء الاصطناعي والبرومبت"],
-    ["🛠️ 3) تصميم — بناء — تطوير"],
-    ["🔧 4) خدمات أخرى"]
+    ["1) تحليل — استشارة — توجيه"],
+    ["2) تعلم الذكاء الاصطناعي والبرومبت"],
+    ["3) تصميم — بناء — تطوير"],
+    ["4) خدمات أخرى"]
 ]
 
-# 3. تحسين منطق تحليل المخاطر
-RISK_KEYWORDS = {
-    "بصيرة": 15, "وريث": 25, "نزاع": 30, "بدون ورق": 25,
-    "بيع سريع": 15, "قضية": 35, "محكمة": 40, "حجز": 30
-}
-SAFE_KEYWORDS = {
-    "عقد": -10, "ملكية": -15, "توثيق": -15, "مخطط": -5,
-    "سند": -10, "رسمي": -12, "مسجل": -8
-}
-
-def analyze_real_estate(text: str):
-    text_lower = text.lower()
+# دالة تحليل المخاطر العقارية
+def analyze_real_estate(text):
     score = 50
-    reasons = []
-    
-    for word, weight in RISK_KEYWORDS.items():
-        if word in text_lower:
-            score += weight
-            reasons.append(f"⚠️ كلمة '{word}' تزيد المخاطر بنسبة {weight}%")
-    
-    for word, weight in SAFE_KEYWORDS.items():
-        if word in text_lower:
-            score += weight
-            reasons.append(f"✅ كلمة '{word}' تقلل المخاطر بنسبة {abs(weight)}%")
-    
+    risk_keywords = ["بصيرة", "وريث", "نزاع", "بدون ورق", "بيع سريع", "خارج المخطط"]
+    safe_keywords = ["عقد", "ملكية", "توثيق", "سجل عقاري", "محكمة"]
+
+    for word in risk_keywords:
+        if word in text:
+            score += 15
+    for word in safe_keywords:
+        if word in text:
+            score -= 10
+
     score = max(0, min(100, score))
     
     if score >= 70:
-        level = "🚨 مرتفع جداً"
-        rec = "⚠️ ننصح بالفحص القانوني الدقيق قبل الشراء والتواصل مع محامٍ متخصص"
+        return score, "🚨 خطر مرتفع", "⚠️ لا تقم بدفع أي مبالغ! العقار يحتاج فحصاً قانونياً دقيقاً."
     elif score >= 40:
-        level = "⚠️ متوسط"
-        rec = "📋 يجب التأكد من صحة الأوراق ميدانياً ومراجعة السجل العقاري"
+        return score, "⚠️ خطر متوسط", "📋 تأكد من مطابقة الأوراق ميدانياً ومن حضور جميع الورثة."
     else:
-        level = "✅ منخفض"
-        rec = "👍 العقار يبدو آمناً مع اتباع الإجراءات الروتينية"
-    
-    return score, level, rec, reasons[:5]  # عرض أول 5 أسباب فقط
+        return score, "✅ خطر منخفض", "👍 العقار يبدو قانونياً، اتبع الإجراءات الرسمية المعتادة."
 
+# دالة الترحيب
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
     await update.message.reply_text(
-        f"🏠 مرحباً بك يا {user_name} في منظومة الدرع 🛡️\n\n"
-        "أنا مساعدك الذكي لتقييم المخاطر العقارية في اليمن والخدمات التقنية.\n\n"
-        "📌 *كيف تستخدم البوت:*\n"
-        "• اختر من القائمة أدناه\n"
-        "• أو أرسل وصف العقار مباشرة للتحليل الفوري\n\n"
-        "مثال: 'أريد شراء منزل في صنعاء بصيرة مع وجود ورثة'",
-        reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True),
-        parse_mode="Markdown"
+        f"مرحباً بك يا {user_name} في منظومة الدرع 🛡️\n\n"
+        "أنا مساعدك الذكي لتقييم المخاطر العقارية والخدمات التقنية.\n"
+        "اختر من القائمة أدناه أو أرسل وصف العقار لتحليله:",
+        reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True)
     )
 
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# دالة معالجة النصوص
+async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    
-    # معالجة الأزرار
+
     if "1)" in text:
-        await update.message.reply_text(
-            "📝 *أرسل وصف العقار للتحليل*\n\n"
-            "معلومات مفيدة للتحليل:\n"
-            "• المنطقة والمدينة\n"
-            "• نوع المستندات المتوفرة\n"
-            "• وجود ورثة أو نزاعات\n"
-            "• حالة الملكية",
-            parse_mode="Markdown"
-        )
+        await update.message.reply_text("ارسل الآن وصفاً للعقار (المنطقة، نوع الوثائق، الحالة القانونية) وسأقوم بتحليله فوراً.")
     elif "2)" in text:
-        await update.message.reply_text(
-            "🤖 *مسارات تعلم الذكاء الاصطناعي*\n\n"
-            "للحصول على دورات ومواد تعليمية في:\n"
-            "• أساسيات الذكاء الاصطناعي\n"
-            "• هندسة البرومبت (Prompt Engineering)\n"
-            "• تطبيقات الذكاء الاصطناعي العملية\n\n"
-            "📩 تواصل معنا: @fan_al_prompt"
-        )
+        await update.message.reply_text(f"لمسارات تعلم الذكاء الاصطناعي وهندسة الأوامر، تابعنا هنا:\n{CONTACT_TELEGRAM}")
     elif "3)" in text:
-        await update.message.reply_text(
-            "🛠️ *خدمات التصميم والتطوير*\n\n"
-            "أرسل تفاصيل مشروعك (تصميم، بناء، تطوير) وسنقوم بـ:\n"
-            "1. دراسة متطلباتك\n"
-            "2. تقديم خطة عمل مفصلة\n"
-            "3. تحديد التكاليف والجدول الزمني\n\n"
-            "يرجى إرسال وصف المشروع الآن"
-        )
+        await update.message.reply_text(f"نحن هنا لمساعدتك في بناء مشروعك التقني. يمكنك الاطلاع على أعمالنا عبر الرابط:\n{WEBSITE_URL}")
     elif "4)" in text:
-        await update.message.reply_text(
-            "🔧 *خدمات أخرى*\n\n"
-            "📞 للتواصل المباشر: 778160500\n"
-            "📧 البريد الإلكتروني: support@aldira.com\n"
-            "💬 متاحين يومياً من 9ص - 9م"
-        )
+        await update.message.reply_text(f"للتواصل المباشر والاستشارات الخاصة:\nواتساب: {CONTACT_PHONE}\nتليجرام: {CONTACT_TELEGRAM}")
     else:
-        # تحليل العقار مع معالجة الخطأ
-        try:
-            score, level, rec, reasons = analyze_real_estate(text)
-            
-            response = (
-                f"🏠 *تقرير الدرع العقاري*\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"📊 *مؤشر المخاطر:* {score}/100\n"
-                f"⚖️ *التقييم:* {level}\n\n"
-                f"💡 *التوصية:* {rec}\n\n"
-                f"📌 *الملاحظات:*\n"
-            )
-            
-            if reasons:
-                response += "\n".join(reasons[:3])  # عرض أول 3 ملاحظات فقط
-                if len(reasons) > 3:
-                    response += f"\n... و{len(reasons)-3} ملاحظة أخرى"
-            else:
-                response += "✓ لا توجد كلمات حرجة ملحوظة"
-            
-            response += "\n\n⚠️ هذا التقرير استرشادي وليس بديلاً عن الاستشارة القانونية"
-            
-            await update.message.reply_text(response, parse_mode="Markdown")
-            
-        except Exception as e:
-            logging.error(f"خطأ في التحليل: {e}")
-            await update.message.reply_text(
-                "❌ عذراً، حدث خطأ في تحليل العقار. يرجى المحاولة مرة أخرى."
-            )
+        score, level, recommendation = analyze_real_estate(text)
+        report = (
+            f"🛡️ *تقرير الدرع العقاري*\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"📊 مؤشر المخاطر: {score}/100\n"
+            f"⚖️ التقييم الفني: {level}\n\n"
+            f"💡 التوصية: {recommendation}"
+        )
+        await update.message.reply_text(report, parse_mode="Markdown")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🆘 *مساعدة الدرع العقاري*\n\n"
-        "• /start - عرض القائمة الرئيسية\n"
-        "• إرسال وصف عقار - تحليل المخاطر\n"
-        "• استخدام الأزرار للوصول للخدمات\n\n"
-        "للتواصل المباشر: @fan_al_prompt"
-    )
-
-# تشغيل البوت
-if __name__ == "__main__":
-    if TOKEN == "8763108829:AAGXJH29btaEMyqGW8NXPUtmZ9egFNNyuV8":
-        print("⚠️ تحذير: أنت تستخدم توكن مكشوف في الكود! استخدم متغيرات البيئة في الإنتاج.")
-    
+# التشغيل الأساسي
+def main():
     try:
-        app = Application.builder().token(TOKEN).build()
-        
-        # إضافة المعالجات
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(CommandHandler("help", help_command))
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-        
-        print("✅ البوت يعمل الآن... (اضغط Ctrl+C للإيقاف)")
-        app.run_polling(drop_pending_updates=True)
-        
+        application = Application.builder().token(TOKEN).build()
+
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_logic))
+
+        print("✅ منظومة الدرع تعمل الآن...")
+        application.run_polling(drop_pending_updates=True)
+
     except Exception as e:
-        print(f"❌ خطأ في التشغيل: {e}")
-        logging.error(f"خطأ فادح: {e}")
+        print(f"❌ حدث خطأ: {e}")
+
+if __name__ == "__main__":
+    main()
