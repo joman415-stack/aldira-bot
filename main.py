@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 # 🔥 التوكن داخل الكود كما طلبت
 TOKEN = "8763108829:AAGSyWX_sspwTZMM5G_E8y1QvyDLhZkV_9"
+
 CONTACT_PHONE = "967778160500"
 CONTACT_TELEGRAM = "https://t.me/fan_al_prompt"
 WEBSITE_URL = "https://al-dira.com"
