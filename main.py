@@ -12,11 +12,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 🔥 التوكن الجديد كما طلبت
-TOKEN = "8763108829:AAEFrXe8Zw6l96Of3NtcKkkXTfOWjmqFbtI"
-
+TOKEN = "8763108829:AAGXJH29btaEMyqGW8NXPUtmZ9egFNNyuV8"
 CONTACT_PHONE = "967778160500"
 CONTACT_TELEGRAM = "https://t.me/fan_al_prompt"
-WEBSITE_URL = "https://al-dira.com"
+WEBSITE_URL = "https://sites.google.com/view/aldira-yemen"
 
 # ==================== لوحة الخيارات ====================
 
