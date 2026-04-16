@@ -1,96 +1,252 @@
+# bot.py - نظام الدرع v23
+import os
+import json
 import logging
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from datetime import datetime
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, CallbackQueryHandler, ContextTypes, filters
 
-# إعداد السجلات لمراقبة الأداء
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+# التوكن من متغيرات Railway
+TOKEN = os.getenv("8763108829:AAGSyWX_sspwTZMM5G_E8y1QvyDLhZkV_9Q")
 
-TOKEN = "8763108829:AAGSyWX_sspwTZMM5G_E8y1QvyDLhZkV_9Q"
+ADMIN_ID = os.getenv("ADMIN_ID = 5068122021")
+  # رقمك أنت كمشرف
+# حفظ البيانات في ملف JSON
+DATA_FILE = "data/clients.json"
 
-# البيانات المحدثة
-CONTACT_PHONE = "96777160500"
-CONTACT_TELEGRAM = "https://t.me/fan_al_prompt"
-WEBSITE_URL = "https://sites.google.com/view/aldira-yemen"
+def load_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
 
-# القائمة الرئيسية
-MAIN_MENU = [
-    ["1) تحليل — استشارة — توجيه"],
-    ["2) تعلم الذكاء الاصطناعي والبرومبت"],
-    ["3) تصميم — بناء — تطوير"],
-    ["4) خدمات أخرى"]
-]
+def save_data(data):
+    os.makedirs("data", exist_ok=True)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-# دالة تحليل المخاطر العقارية
-def analyze_real_estate(text):
-    score = 50
-    risk_keywords = ["بصيرة", "وريث", "نزاع", "بدون ورق", "بيع سريع", "خارج المخطط"]
-    safe_keywords = ["عقد", "ملكية", "توثيق", "سجل عقاري", "محكمة"]
+# مراحل المحادثة
+(START, NAME, SERVICE, LOCATION, OWNER, DOC_TYPE, DOC_NUM, DOC_DATE, 
+ ISSUER, INHERITANCE, PROBLEMS, ANALYZE) = range(12)
 
-    for word in risk_keywords:
-        if word in text:
-            score += 15
-    for word in safe_keywords:
-        if word in text:
-            score -= 10
+# الرسالة التركيبية
+WELCOME_MSG = """
+🛡️ *نظام الدرع v23 - اليمن*
 
-    score = max(0, min(100, score))
-    
-    if score >= 70:
-        return score, "🚨 خطر مرتفع", "⚠️ لا تقم بدفع أي مبالغ! العقار يحتاج فحصاً قانونياً دقيقاً."
-    elif score >= 40:
-        return score, "⚠️ خطر متوسط", "📋 تأكد من مطابقة الأوراق ميدانياً ومن حضور جميع الورثة."
-    else:
-        return score, "✅ خطر منخفض", "👍 العقار يبدو قانونياً، اتبع الإجراءات الرسمية المعتادة."
+أهلاً بك في نظام حماية الاستثمار العقاري
 
-# دالة الترحيب
+📋 *الخدمات المتوفرة:*
+• فحص قانوني شامل
+• تقييم مخاطر الاستثمار
+• استشارة فنية
+
+⚠️ *تنبيه:* النتيجة الأولية آلية، والنهائية خلال 24 ساعة من خبير
+
+🔽 اختر الخدمة المطلوبة:
+"""
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_name = update.effective_user.first_name
-    await update.message.reply_text(
-        f"مرحباً بك يا {user_name} في منظومة الدرع 🛡️\n\n"
-        "أنا مساعدك الذكي لتقييم المخاطر العقارية والخدمات التقنية.\n"
-        "اختر من القائمة أدناه أو أرسل وصف العقار لتحليله:",
-        reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True)
-    )
+    keyboard = [
+        [InlineKeyboardButton("🏠 فحص قانوني", callback_data="legal")],
+        [InlineKeyboardButton("📊 تقييم مخاطر", callback_data="risk")],
+        [InlineKeyboardButton("🔧 استشارة فنية", callback_data="technical")]
+    ]
+    await update.message.reply_text(WELCOME_MSG, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    return SERVICE
 
-# دالة معالجة النصوص
-async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
+async def service_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    context.user_data["service"] = query.data
+    
+    await query.edit_message_text("✏️ أرسل اسمك الكامل:")
+    return NAME
 
-    if "1)" in text:
-        await update.message.reply_text("ارسل الآن وصفاً للعقار (المنطقة، نوع الوثائق، الحالة القانونية) وسأقوم بتحليله فوراً.")
-    elif "2)" in text:
-        await update.message.reply_text(f"لمسارات تعلم الذكاء الاصطناعي وهندسة الأوامر، تابعنا هنا:\n{CONTACT_TELEGRAM}")
-    elif "3)" in text:
-        await update.message.reply_text(f"نحن هنا لمساعدتك في بناء مشروعك التقني. يمكنك الاطلاع على أعمالنا عبر الرابط:\n{WEBSITE_URL}")
-    elif "4)" in text:
-        await update.message.reply_text(f"للتواصل المباشر والاستشارات الخاصة:\nواتساب: {CONTACT_PHONE}\nتليجرام: {CONTACT_TELEGRAM}")
-    else:
-        score, level, recommendation = analyze_real_estate(text)
-        report = (
-            f"🛡️ *تقرير الدرع العقاري*\n"
-            f"━━━━━━━━━━━━━━━\n"
-            f"📊 مؤشر المخاطر: {score}/100\n"
-            f"⚖️ التقييم الفني: {level}\n\n"
-            f"💡 التوصية: {recommendation}"
-        )
-        await update.message.reply_text(report, parse_mode="Markdown")
+async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["name"] = update.message.text
+    await update.message.reply_text("📍 المحافظة:")
+    return LOCATION
 
-# التشغيل الأساسي
+async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["location"] = update.message.text
+    await update.message.reply_text("👤 اسم المالك:")
+    return OWNER
+
+async def get_owner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["owner"] = update.message.text
+    await update.message.reply_text("📄 نوع الوثيقة (عقد/حجة/قرار/أخرى):")
+    return DOC_TYPE
+
+async def get_doc_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["doc_type"] = update.message.text
+    await update.message.reply_text("🔢 رقم الوثيقة:")
+    return DOC_NUM
+
+async def get_doc_num(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["doc_num"] = update.message.text
+    await update.message.reply_text("📅 تاريخ إصدار الوثيقة:")
+    return DOC_DATE
+
+async def get_doc_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["doc_date"] = update.message.text
+    await update.message.reply_text("🏛️ الجهة المصدرة:")
+    return ISSUER
+
+async def get_issuer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["issuer"] = update.message.text
+    
+    keyboard = [
+        [InlineKeyboardButton("🛒 شراء", callback_data="buy")],
+        [InlineKeyboardButton("👨‍👩‍👧‍👦 ورث", callback_data="inherit")]
+    ]
+    await update.message.reply_text("نوع الحيازة:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return INHERITANCE
+
+async def get_inheritance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    context.user_data["inheritance"] = query.data
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ لا يوجد", callback_data="no")],
+        [InlineKeyboardButton("❌ يوجد", callback_data="yes")]
+    ]
+    await query.edit_message_text("هل يوجد نزاعات/مشاكل على العقار؟", reply_markup=InlineKeyboardMarkup(keyboard))
+    return PROBLEMS
+
+async def get_problems(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    context.user_data["problems"] = query.data
+    
+    # حساب النسبة
+    inh = context.user_data["inheritance"]
+    prob = context.user_data["problems"]
+    
+    if inh == "buy" and prob == "no":
+        score = 70
+        color = "🟢"
+        risk = "منخفض"
+    elif inh == "buy" and prob == "yes":
+        score = 50
+        color = "🟡"
+        risk = "متوسط"
+    elif inh == "inherit" and prob == "no":
+        score = 50
+        color = "🟡"
+        risk = "متوسط"
+    else:  # inherit + yes
+        score = 20
+        color = "🔴"
+        risk = "عالي جداً"
+    
+    context.user_data["score"] = score
+    context.user_data["color"] = color
+    context.user_data["risk"] = risk
+    context.user_data["date"] = datetime.now().isoformat()
+    context.user_data["chat_id"] = query.message.chat_id
+    
+    # حفظ البيانات
+    data = load_data()
+    user_id = str(query.from_user.id)
+    if user_id not in data:
+        data[user_id] = []
+    data[user_id].append(context.user_data)
+    save_data(data)
+    
+    # الرسالة التركيبية النهائية
+    msg = f"""
+🛡️ *نظام الدرع v23 - تقرير تحليل عقاري*
+
+👤 *العميل:* {context.user_data['name']}
+
+📍 *الموقع:* {context.user_data['location']}
+👤 *المالك:* {context.user_data['owner']}
+
+📋 *الوثيقة:*
+• النوع: {context.user_data['doc_type']}
+• الرقم: {context.user_data['doc_num']}
+• التاريخ: {context.user_data['doc_date']}
+• المصدر: {context.user_data['issuer']}
+
+⚖️ *الحيازة:* {"شراء" if inh == "buy" else "ورث"}
+⚠️ *المشاكل:* {"لا يوجد" if prob == "no" else "يوجد"}
+
+📊 *نتيجة التحليل الأولي:*
+{color} *{score}%* - خطر {risk}
+
+⏳ *النتيجة النهائية خلال 24 ساعة*
+👨‍⚖️ تحليل خبير قانوني وفني
+
+📞 *للاستفسار العاجل:*
+00967778160500
+
+📢 *قناة الدرع:* @fan_al_prompt
+🌐 *الموقع:* aldira-yemen.com
+"""
+    
+    # أزرار التواصل
+    keyboard = [
+        [InlineKeyboardButton("📱 واتساب", url="https://wa.me/967778160500")],
+        [InlineKeyboardButton("💬 تليجرام", url="https://t.me/fan_al_prompt")],
+        [InlineKeyboardButton("🌐 الموقع", url="https://sites.google.com/view/aldira-yemen")],
+        [InlineKeyboardButton("🔄 تحليل جديد", callback_data="restart")]
+    ]
+    
+    await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    # إشعار للأدمن
+    if ADMIN_ID:
+        admin_msg = f"""
+🔔 *طلب جديد في الدرع!*
+
+من: {context.user_data['name']}
+المحافظة: {context.user_data['location']}
+النسبة: {score}% {color}
+
+الرقم: {context.user_data.get('doc_num', 'غير متوفر')}
+"""
+        try:
+            await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, parse_mode="Markdown")
+        except:
+            pass
+    
+    return ConversationHandler.END
+
+async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await start(update, context)
+    return SERVICE
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ تم الإلغاء. أرسل /start للبدء من جديد")
+    return ConversationHandler.END
+
 def main():
-    try:
-        application = Application.builder().token(TOKEN).build()
-
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_logic))
-
-        print("✅ منظومة الدرع تعمل الآن...")
-        application.run_polling(drop_pending_updates=True)
-
-    except Exception as e:
-        print(f"❌ حدث خطأ: {e}")
+    application = Application.builder().token(TOKEN).build()
+    
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            SERVICE: [CallbackQueryHandler(service_selected)],
+            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+            LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_location)],
+            OWNER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_owner)],
+            DOC_TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_doc_type)],
+            DOC_NUM: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_doc_num)],
+            DOC_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_doc_date)],
+            ISSUER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_issuer)],
+            INHERITANCE: [CallbackQueryHandler(get_inheritance)],
+            PROBLEMS: [CallbackQueryHandler(get_problems)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
+    
+    application.add_handler(conv_handler)
+    application.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
+    
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
