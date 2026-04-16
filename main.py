@@ -1,7 +1,7 @@
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, MessageHandler, CommandHandler, ContextTypes, filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram.ext import Application, MessageHandler, CommandHandler, CallbackQueryHandler, ContextTypes, filters
 
 # ==================== الإعدادات ====================
 
@@ -11,12 +11,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 🔥 التوكن داخل الكود كما طلبت
 TOKEN = "8763108829:AAEp6Hj9vnfm8KBW9xoVfFd5ps3uwYVvYfI"
 
 CONTACT_PHONE = "967778160500"
 CONTACT_TELEGRAM = "https://t.me/fan_al_prompt"
 WEBSITE_URL = "https://al-dira.com"
+
+# ==================== لوحة الخيارات ====================
+
+MAIN_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        ["1) تحليل — استشارة — توجيه"],
+        ["2) تعلم الذكاء الاصطناعي والبرومبت"],
+        ["3) تصميم — بناء — تطوير"],
+        ["4) خدمات أخرى"],
+    ],
+    resize_keyboard=True
+)
 
 # ==================== محرك التحليل ====================
 
@@ -57,14 +68,88 @@ def calculate_risk(text):
 
     return score, level, reasons, recommendation
 
-# ==================== الرد على الرسائل ====================
+# ==================== الرسائل ====================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🛡️ *مرحباً بك في نظام الدرع العقاري*\n"
-        "أرسل أي وصف للعقار وسأقوم بتحليل المخاطر فوراً.",
-        parse_mode="Markdown"
+        "مرحبًا بك في منظومة الدرع — يسعدني مساعدتك 🌟\n\n"
+        "اختر خدمتك من القائمة:\n"
+        "1) تحليل — استشارة — توجيه\n"
+        "2) تعلم الذكاء الاصطناعي والبرومبت\n"
+        "3) تصميم — بناء — تطوير\n"
+        "4) خدمات أخرى\n\n"
+        "أو أرسل وصف العقار مباشرة لتحليل المخاطر.",
+        reply_markup=MAIN_KEYBOARD
     )
+
+async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "منظومة الدرع | لتقييم مخاطر الاستثمار العقاري – اليمن\n\n"
+        "مهمتي مساعدتك في:\n"
+        "- تحليل العقارات\n"
+        "- تقييم المخاطر\n"
+        "- تقديم الاستشارات\n"
+        "- دعم التعلم والتطوير\n"
+        "- توجيهك للقنوات الرسمية\n\n"
+        "للتواصل المباشر:\n"
+        "واتساب: 778160500"
+    )
+
+# ==================== ردود الخيارات ====================
+
+async def handle_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message.text.strip()
+
+    # خيار 1
+    if msg.startswith("1"):
+        await update.message.reply_text(
+            "شكرًا لاختيارك خدمة التحليل والاستشارة 👇\n\n"
+            "أرسل لي الآن:\n"
+            "1) نوع العقار\n"
+            "2) الموقع\n"
+            "3) السعر أو الميزانية\n"
+            "4) الهدف\n\n"
+            "وسأقوم بتحليل المخاطر وتقديم التوصيات."
+        )
+        return
+
+    # خيار 2
+    if msg.startswith("2"):
+        await update.message.reply_text(
+            "ممتاز! مسار تعلم الذكاء الاصطناعي متاح بثلاث مستويات 👇\n\n"
+            "1) مبتدئ\n"
+            "2) متوسط\n"
+            "3) محترف\n\n"
+            "للمحتوى المتقدم:\n"
+            f"{CONTACT_TELEGRAM}"
+        )
+        return
+
+    # خيار 3
+    if msg.startswith("3"):
+        await update.message.reply_text(
+            "رائع! قبل أن أبدأ في مساعدتك…\n"
+            "أرسل لي:\n"
+            "1) نوع المشروع\n"
+            "2) مثال أو مرجع\n"
+            "3) الهدف النهائي\n"
+        )
+        return
+
+    # خيار 4
+    if msg.startswith("4"):
+        await update.message.reply_text(
+            "يسعدني مساعدتك… ما الخدمة التي تبحث عنها؟\n\n"
+            f"واتساب: {CONTACT_PHONE}\n"
+            f"القناة: {CONTACT_TELEGRAM}\n"
+            f"الموقع: {WEBSITE_URL}"
+        )
+        return
+
+    # إذا لم يكن خيار → تحليل عقاري
+    await analyze_message(update, context)
+
+# ==================== التحليل ====================
 
 async def analyze_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -111,7 +196,9 @@ def main():
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, analyze_message))
+    app.add_handler(CommandHandler("about", about))
+    app.add_handler(CallbackQueryHandler(new_analysis))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_options))
 
     app.run_polling()
 
