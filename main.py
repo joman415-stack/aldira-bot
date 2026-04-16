@@ -135,7 +135,7 @@ async def get_problems(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.update({
         "score": score, "color": color, "risk": risk,
         "date": datetime.now().isoformat(),
-        "chat_id": query.message.chat_id
+        "chat_id": query.message.chat.id   # ← تم تصحيحها
     })
     
     data = load_data()
@@ -207,6 +207,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 def main():
+    if not TOKEN:
+        raise ValueError("❌ BOT_TOKEN غير موجود في المتغيرات البيئية")
+
     application = Application.builder().token(TOKEN).build()
     
     conv_handler = ConversationHandler(
