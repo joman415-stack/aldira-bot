@@ -1,2 +1,3 @@
- standard-imghdr
+pure-imghdr
+
 
