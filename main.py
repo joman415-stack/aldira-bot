@@ -1,20 +1,25 @@
 import os
 import json
+import logging
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Updater,
     CommandHandler,
     MessageHandler,
     ConversationHandler,
     CallbackQueryHandler,
-    Filters,
+    Filters
 )
 
-TOKEN = "8763108829:AAFhUup54-e6t3QsOMBfYemQusI9qpJlvTM" # ضع التوكن في Environment Variables داخل Render
+# إعداد السجلات لمراقبة البوت في Render
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+TOKEN = "8763108829:AAFhUup54-e6t3QsOMBfYemQusI9qpJlvTM"
 ADMIN_ID = 5068122021
 DATA_FILE = "data/clients.json"
 
+# تحميل وحفظ البيانات
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -22,10 +27,12 @@ def load_data():
     return {}
 
 def save_data(data):
-    os.makedirs("data", exist_ok=True)
+    if not os.path.exists("data"):
+        os.makedirs("data")
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+# تعريف مراحل المحادثة
 NAME, SERVICE, LOCATION, OWNER, DOC_TYPE, DOC_NUM, DOC_DATE, ISSUER, INHERITANCE, PROBLEMS = range(10)
 
 WELCOME_MSG = """
@@ -50,8 +57,8 @@ def start(update, context):
         [InlineKeyboardButton("🔧 استشارة فنية", callback_data="technical")]
     ]
     update.message.reply_text(
-        WELCOME_MSG,
-        parse_mode="Markdown",
+        WELCOME_MSG, 
+        parse_mode="Markdown", 
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return SERVICE
@@ -132,8 +139,7 @@ def get_problems(update, context):
     
     context.user_data.update({
         "score": score, "color": color, "risk": risk,
-        "date": datetime.now().isoformat(),
-        "chat_id": query.message.chat.id
+        "date": datetime.now().isoformat()
     })
     
     data = load_data()
@@ -171,19 +177,15 @@ def get_problems(update, context):
     keyboard = [
         [InlineKeyboardButton("📱 واتساب", url="https://wa.me/967778160500")],
         [InlineKeyboardButton("💬 تليجرام", url="https://t.me/fan_al_prompt")],
-        [InlineKeyboardButton("🌐 الموقع", url="https://sites.google.com/view/aldira-yemen")],
         [InlineKeyboardButton("🔄 تحليل جديد", callback_data="restart")]
     ]
     
     query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
     
     if ADMIN_ID:
-        admin_msg = f"""🔔 طلب جديد!
-من: {context.user_data['name']}
-المحافظة: {context.user_data['location']}
-النسبة: {score}% {color}"""
+        admin_msg = f"🔔 طلب جديد!\nمن: {context.user_data['name']}\nالنسبة: {score}% {color}"
         try:
-            context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, parse_mode="Markdown")
+            context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg)
         except:
             pass
     
@@ -206,31 +208,31 @@ def cancel(update, context):
 
 def main():
     updater = Updater(TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
-    
+    dp = updater.dispatcher
+
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
             SERVICE: [CallbackQueryHandler(service_selected)],
-            NAME: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_name)],
-            LOCATION: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_location)],
-            OWNER: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_owner)],
-            DOC_TYPE: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_doc_type)],
-            DOC_NUM: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_doc_num)],
-            DOC_DATE: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_doc_date)],
-            ISSUER: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_issuer)],
+            NAME: [MessageHandler(Filters.text & ~Filters.command, get_name)],
+            LOCATION: [MessageHandler(Filters.text & ~Filters.command, get_location)],
+            OWNER: [MessageHandler(Filters.text & ~Filters.command, get_owner)],
+            DOC_TYPE: [MessageHandler(Filters.text & ~Filters.command, get_doc_type)],
+            DOC_NUM: [MessageHandler(Filters.text & ~Filters.command, get_doc_num)],
+            DOC_DATE: [MessageHandler(Filters.text & ~Filters.command, get_doc_date)],
+            ISSUER: [MessageHandler(Filters.text & ~Filters.command, get_issuer)],
             INHERITANCE: [CallbackQueryHandler(get_inheritance)],
             PROBLEMS: [CallbackQueryHandler(get_problems)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+
+    dp.add_handler(conv_handler)
+    dp.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
     
-    dispatcher.add_handler(conv_handler)
-    dispatcher.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
-    
-    print("🛡️ نظام الدرع v23 يعمل...")
+    print("🛡️ نظام الدرع يعمل...")
     updater.start_polling()
     updater.idle()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
