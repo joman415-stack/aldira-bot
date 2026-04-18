@@ -3,18 +3,16 @@ import json
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application, 
-    CommandHandler, 
-    MessageHandler, 
-    ConversationHandler, 
-    CallbackQueryHandler, 
-    ContextTypes, 
-    filters
+    Updater,
+    CommandHandler,
+    MessageHandler,
+    ConversationHandler,
+    CallbackQueryHandler,
+    Filters,
 )
 
-TOKEN = "8763108829:AAF1CjLrtSoxEIs4uKKdg2zTedx818nwDXk"
+TOKEN = "8763108829:AAFhUup54-e6t3QsOMBfYemQusI9qpJlvTM" # ضع التوكن في Environment Variables داخل Render
 ADMIN_ID = 5068122021
-
 DATA_FILE = "data/clients.json"
 
 def load_data():
@@ -45,79 +43,79 @@ WELCOME_MSG = """
 🔽 اختر الخدمة:
 """
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def start(update, context):
     keyboard = [
         [InlineKeyboardButton("🏠 فحص قانوني", callback_data="legal")],
         [InlineKeyboardButton("📊 تقييم مخاطر", callback_data="risk")],
         [InlineKeyboardButton("🔧 استشارة فنية", callback_data="technical")]
     ]
-    await update.message.reply_text(
-        WELCOME_MSG, 
-        parse_mode="Markdown", 
+    update.message.reply_text(
+        WELCOME_MSG,
+        parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return SERVICE
 
-async def service_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def service_selected(update, context):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     context.user_data["service"] = query.data
-    await query.edit_message_text("✏️ أرسل اسمك الكامل:")
+    query.edit_message_text("✏️ أرسل اسمك الكامل:")
     return NAME
 
-async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def get_name(update, context):
     context.user_data["name"] = update.message.text
-    await update.message.reply_text("📍 المحافظة:")
+    update.message.reply_text("📍 المحافظة:")
     return LOCATION
 
-async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def get_location(update, context):
     context.user_data["location"] = update.message.text
-    await update.message.reply_text("👤 اسم المالك:")
+    update.message.reply_text("👤 اسم المالك:")
     return OWNER
 
-async def get_owner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def get_owner(update, context):
     context.user_data["owner"] = update.message.text
-    await update.message.reply_text("📄 نوع الوثيقة (عقد/حجة/قرار):")
+    update.message.reply_text("📄 نوع الوثيقة (عقد/حجة/قرار):")
     return DOC_TYPE
 
-async def get_doc_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def get_doc_type(update, context):
     context.user_data["doc_type"] = update.message.text
-    await update.message.reply_text("🔢 رقم الوثيقة:")
+    update.message.reply_text("🔢 رقم الوثيقة:")
     return DOC_NUM
 
-async def get_doc_num(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def get_doc_num(update, context):
     context.user_data["doc_num"] = update.message.text
-    await update.message.reply_text("📅 تاريخ الإصدار:")
+    update.message.reply_text("📅 تاريخ الإصدار:")
     return DOC_DATE
 
-async def get_doc_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def get_doc_date(update, context):
     context.user_data["doc_date"] = update.message.text
-    await update.message.reply_text("🏛️ الجهة المصدرة:")
+    update.message.reply_text("🏛️ الجهة المصدرة:")
     return ISSUER
 
-async def get_issuer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def get_issuer(update, context):
     context.user_data["issuer"] = update.message.text
     keyboard = [
         [InlineKeyboardButton("🛒 شراء", callback_data="buy")],
         [InlineKeyboardButton("👨‍👩‍👧‍👦 ورث", callback_data="inherit")]
     ]
-    await update.message.reply_text("نوع الحيازة:", reply_markup=InlineKeyboardMarkup(keyboard))
+    update.message.reply_text("نوع الحيازة:", reply_markup=InlineKeyboardMarkup(keyboard))
     return INHERITANCE
 
-async def get_inheritance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def get_inheritance(update, context):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     context.user_data["inheritance"] = query.data
     keyboard = [
         [InlineKeyboardButton("✅ لا يوجد", callback_data="no")],
         [InlineKeyboardButton("❌ يوجد", callback_data="yes")]
     ]
-    await query.edit_message_text("هل يوجد نزاعات/مشاكل؟", reply_markup=InlineKeyboardMarkup(keyboard))
+    query.edit_message_text("هل يوجد نزاعات/مشاكل؟", reply_markup=InlineKeyboardMarkup(keyboard))
     return PROBLEMS
 
-async def get_problems(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def get_problems(update, context):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     context.user_data["problems"] = query.data
     
     inh = context.user_data["inheritance"]
@@ -135,7 +133,7 @@ async def get_problems(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.update({
         "score": score, "color": color, "risk": risk,
         "date": datetime.now().isoformat(),
-        "chat_id": query.message.chat.id   # ← تم تصحيحها
+        "chat_id": query.message.chat.id
     })
     
     data = load_data()
@@ -177,7 +175,7 @@ async def get_problems(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔄 تحليل جديد", callback_data="restart")]
     ]
     
-    await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
     
     if ADMIN_ID:
         admin_msg = f"""🔔 طلب جديد!
@@ -185,55 +183,54 @@ async def get_problems(update: Update, context: ContextTypes.DEFAULT_TYPE):
 المحافظة: {context.user_data['location']}
 النسبة: {score}% {color}"""
         try:
-            await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, parse_mode="Markdown")
+            context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, parse_mode="Markdown")
         except:
             pass
     
     return ConversationHandler.END
 
-async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def restart(update, context):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     keyboard = [
         [InlineKeyboardButton("🏠 فحص قانوني", callback_data="legal")],
         [InlineKeyboardButton("📊 تقييم مخاطر", callback_data="risk")],
         [InlineKeyboardButton("🔧 استشارة فنية", callback_data="technical")]
     ]
-    await query.edit_message_text(WELCOME_MSG, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    query.edit_message_text(WELCOME_MSG, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
     return SERVICE
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ تم الإلغاء. أرسل /start للبدء")
+def cancel(update, context):
+    update.message.reply_text("❌ تم الإلغاء. أرسل /start للبدء")
     return ConversationHandler.END
 
 def main():
-    if not TOKEN:
-        raise ValueError("❌ BOT_TOKEN غير موجود في المتغيرات البيئية")
-
-    application = Application.builder().token(TOKEN).build()
+    updater = Updater(TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
     
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
             SERVICE: [CallbackQueryHandler(service_selected)],
-            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-            LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_location)],
-            OWNER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_owner)],
-            DOC_TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_doc_type)],
-            DOC_NUM: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_doc_num)],
-            DOC_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_doc_date)],
-            ISSUER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_issuer)],
+            NAME: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_name)],
+            LOCATION: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_location)],
+            OWNER: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_owner)],
+            DOC_TYPE: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_doc_type)],
+            DOC_NUM: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_doc_num)],
+            DOC_DATE: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_doc_date)],
+            ISSUER: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, get_issuer)],
             INHERITANCE: [CallbackQueryHandler(get_inheritance)],
             PROBLEMS: [CallbackQueryHandler(get_problems)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
     
-    application.add_handler(conv_handler)
-    application.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
+    dispatcher.add_handler(conv_handler)
+    dispatcher.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
     
     print("🛡️ نظام الدرع v23 يعمل...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
     main()
