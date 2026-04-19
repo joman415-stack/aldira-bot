@@ -1,8 +1,6 @@
-import os
+Import os
 import json
 import logging
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -14,25 +12,9 @@ from telegram.ext import (
     Filters
 )
 
-# --- 1. جزء إرضاء سيرفر Render (الميناء الوهمي) ---
-class SimpleHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is active and running")
-
-def run_web_server():
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
-    server.serve_forever()
-
-# تشغيل الخادم الوهمي في خيط منفصل ليتجاوز خطأ Port timeout
-threading.Thread(target=run_web_server, daemon=True).start()
-
-# --- 2. إعدادات البوت الأساسية ---
+# إعداد السجلات لمراقبة البوت في Render
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# تم وضع التوكن الخاص بك هنا
 TOKEN = "8763108829:AAFhUup54-e6t3QsOMBfYemQusI9qpJlvTM"
 ADMIN_ID = 5068122021
 DATA_FILE = "data/clients.json"
