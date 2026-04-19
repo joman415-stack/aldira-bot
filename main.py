@@ -5,6 +5,7 @@ import threading
 import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Updater,
@@ -15,7 +16,9 @@ from telegram.ext import (
     Filters
 )
 
-# --- 🔥 0. التوكن ---
+# =========================
+# 🔥 التوكن
+# =========================
 TOKEN = "8763108829:AAGl10eR5hGJCnBgkF2v2lCWY7Ut7hWurnc"
 if not TOKEN:
     raise ValueError("❌ BOT_TOKEN غير موجود")
@@ -23,7 +26,9 @@ if not TOKEN:
 ADMIN_ID = 5068122021
 DATA_FILE = "data/clients.json"
 
-# --- 1. سيرفر Render ---
+# =========================
+# 🌐 سيرفر وهمي لـ Render
+# =========================
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -32,53 +37,22 @@ class SimpleHandler(BaseHTTPRequestHandler):
 
 def run_web_server():
     port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
+    server = HTTPServer(("0.0.0.0", port), SimpleHandler)
     server.serve_forever()
 
 threading.Thread(target=run_web_server, daemon=True).start()
 
-# --- 2. logging ---
+# =========================
+# 🧾 logging
+# =========================
 logging.basicConfig(level=logging.INFO)
 
 def error_handler(update, context):
-    logging.error("خطأ:", exc_info=context.error)
+    logging.error("BOT ERROR", exc_info=context.error)
 
-# --- 3. Validation ---
-def validate_input(update, field_type):
-    text = update.message.text.strip()
-
-    if not text:
-        update.message.reply_text("⚠️ لا يمكن ترك الحقل فارغ.")
-        return None
-
-    if field_type == "name":
-        if len(text) < 3:
-            update.message.reply_text("⚠️ الاسم قصير جداً.")
-            return None
-        if not re.match(r"^[\u0600-\u06FF\s]+$", text):
-            update.message.reply_text("⚠️ أدخل اسم عربي صحيح.")
-            return None
-
-    elif field_type == "location":
-        if len(text) < 2:
-            update.message.reply_text("⚠️ الموقع غير صحيح.")
-            return None
-
-    elif field_type == "doc_num":
-        if not text.isdigit():
-            update.message.reply_text("⚠️ رقم الوثيقة يجب أن يكون أرقام فقط.")
-            return None
-
-    elif field_type == "date":
-        try:
-            datetime.strptime(text, "%Y-%m-%d")
-        except:
-            update.message.reply_text("⚠️ استخدم الصيغة YYYY-MM-DD")
-            return None
-
-    return text
-
-# --- 4. data ---
+# =========================
+# 📦 البيانات
+# =========================
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -91,39 +65,98 @@ def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-# --- 5. states ---
+# =========================
+# 🔢 الحالات
+# =========================
 NAME, SERVICE, LOCATION, OWNER, DOC_TYPE, DOC_NUM, DOC_DATE, ISSUER, INHERITANCE, PROBLEMS = range(10)
 
+# =========================
+# 🛡️ رسالة البداية
+# =========================
 WELCOME_MSG = """
 🛡️ نظام الدرع v23 - اليمن
 
-أهلاً بك في نظام حماية الاستثمار العقاري
+أهلاً بك في نظام تحليل المخاطر العقارية
+
+📊 الخدمة:
+تحليل أولي + تقييم مخاطر
+
+⚠️ النتيجة خلال ثواني (أولي) + تقرير نهائي خلال 24 ساعة
 
 🔽 اختر الخدمة:
 """
 
-def reset_user_data(context):
+# =========================
+# 🧠 تنظيف
+# =========================
+def reset_user(context):
     context.user_data.clear()
 
-# --- 6. handlers ---
+# =========================
+# 🧪 التحقق من الإدخال
+# =========================
+def validate(update, field):
+    text = update.message.text.strip()
+
+    if not text:
+        update.message.reply_text("⚠️ لا يمكن تركه فارغ")
+        return None
+
+    if field == "name":
+        if len(text) < 3:
+            update.message.reply_text("⚠️ الاسم يجب أن يكون 3 أحرف على الأقل")
+            return None
+
+    if field == "doc_num":
+        if not text.isdigit():
+            update.message.reply_text("⚠️ رقم الوثيقة أرقام فقط")
+            return None
+
+    if field == "date":
+        try:
+            datetime.strptime(text, "%Y-%m-%d")
+        except:
+            update.message.reply_text(
+                "📅 يرجى إرسال تاريخ الإصدار بصيغة:\n"
+                "YYYY-MM-DD\n"
+                "📌 مثال: 2026-04-19"
+            )
+            return None
+
+    return text
+
+# =========================
+# 🚀 البداية
+# =========================
 def start(update, context):
     keyboard = [
         [InlineKeyboardButton("🏠 فحص قانوني", callback_data="legal")],
         [InlineKeyboardButton("📊 تقييم مخاطر", callback_data="risk")],
         [InlineKeyboardButton("🔧 استشارة فنية", callback_data="technical")]
     ]
-    update.message.reply_text(WELCOME_MSG, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    update.message.reply_text(
+        WELCOME_MSG,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
     return SERVICE
 
+# =========================
+# 📌 اختيار الخدمة
+# =========================
 def service_selected(update, context):
     query = update.callback_query
     query.answer()
+
     context.user_data["service"] = query.data
     query.edit_message_text("✏️ أرسل اسمك الكامل:")
     return NAME
 
+# =========================
+# 👤 الاسم
+# =========================
 def get_name(update, context):
-    text = validate_input(update, "name")
+    text = validate(update, "name")
     if not text:
         return NAME
 
@@ -131,8 +164,11 @@ def get_name(update, context):
     update.message.reply_text("📍 المحافظة:")
     return LOCATION
 
+# =========================
+# 📍 الموقع
+# =========================
 def get_location(update, context):
-    text = validate_input(update, "location")
+    text = validate(update, "name")
     if not text:
         return LOCATION
 
@@ -140,8 +176,11 @@ def get_location(update, context):
     update.message.reply_text("👤 اسم المالك:")
     return OWNER
 
+# =========================
+# 👤 المالك
+# =========================
 def get_owner(update, context):
-    text = validate_input(update, "name")
+    text = validate(update, "name")
     if not text:
         return OWNER
 
@@ -149,17 +188,19 @@ def get_owner(update, context):
     update.message.reply_text("📄 نوع الوثيقة:")
     return DOC_TYPE
 
+# =========================
+# 📄 الوثيقة
+# =========================
 def get_doc_type(update, context):
-    text = validate_input(update, "name")
-    if not text:
-        return DOC_TYPE
-
-    context.user_data["doc_type"] = text
+    context.user_data["doc_type"] = update.message.text
     update.message.reply_text("🔢 رقم الوثيقة:")
     return DOC_NUM
 
+# =========================
+# 🔢 الرقم
+# =========================
 def get_doc_num(update, context):
-    text = validate_input(update, "doc_num")
+    text = validate(update, "doc_num")
     if not text:
         return DOC_NUM
 
@@ -167,41 +208,46 @@ def get_doc_num(update, context):
     update.message.reply_text("📅 أدخل التاريخ:")
     return DOC_DATE
 
-# 🔥 التعديل هنا فقط (تحسين الرسالة)
+# =========================
+# 📅 التاريخ (مهم جداً)
+# =========================
 def get_doc_date(update, context):
-    text = validate_input(update, "date")
+    text = validate(update, "date")
     if not text:
         return DOC_DATE
 
     context.user_data["doc_date"] = text
 
     update.message.reply_text(
-        "📅 أدخل تاريخ الإصدار:\n"
-        "✳️ الصيغة المطلوبة: YYYY-MM-DD\n"
-        "📌 مثال: 2026-04-19\n\n"
-        "⚠️ تأكد أن التاريخ صحيح بدون أخطاء"
+        "📅 تم تسجيل التاريخ بنجاح\n"
+        "🏛️ الآن أرسل الجهة المصدرة:"
     )
-
     return ISSUER
 
+# =========================
+# 🏛️ الجهة
+# =========================
 def get_issuer(update, context):
-    text = validate_input(update, "name")
-    if not text:
-        return ISSUER
-
-    context.user_data["issuer"] = text
+    context.user_data["issuer"] = update.message.text
 
     keyboard = [
         [InlineKeyboardButton("شراء", callback_data="buy")],
         [InlineKeyboardButton("ورث", callback_data="inherit")]
     ]
 
-    update.message.reply_text("⚖️ نوع الحيازة:", reply_markup=InlineKeyboardMarkup(keyboard))
+    update.message.reply_text(
+        "⚖️ نوع الحيازة:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
     return INHERITANCE
 
+# =========================
+# ⚖️ الحيازة
+# =========================
 def get_inheritance(update, context):
     query = update.callback_query
     query.answer()
+
     context.user_data["inheritance"] = query.data
 
     keyboard = [
@@ -209,57 +255,105 @@ def get_inheritance(update, context):
         [InlineKeyboardButton("يوجد مشاكل", callback_data="yes")]
     ]
 
-    query.edit_message_text("⚠️ هل توجد مشاكل؟", reply_markup=InlineKeyboardMarkup(keyboard))
+    query.edit_message_text(
+        "⚠️ هل توجد مشاكل؟",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
     return PROBLEMS
 
+# =========================
+# 📊 التحليل
+# =========================
 def get_problems(update, context):
     query = update.callback_query
     query.answer()
 
     context.user_data["problems"] = query.data
 
-    inh = context.user_data.get("inheritance")
+    inh = context.user_data["inheritance"]
+    prob = context.user_data["problems"]
 
+    # 🧠 تحليل أولي
     score = 50
+
     if inh == "buy":
-        score += 10
-    if context.user_data["problems"] == "yes":
+        score += 15
+    else:
+        score -= 10
+
+    if prob == "yes":
         score -= 30
 
-    score = max(0, min(100, score))
+    score = max(20, min(70, score))  # تحليل أولي فقط (20-70)
 
-    color = "🟢" if score >= 70 else "🟡" if score >= 40 else "🔴"
+    if score >= 60:
+        color = "🟢"
+    elif score >= 40:
+        color = "🟡"
+    else:
+        color = "🔴"
 
     msg = f"""
-🛡️ تقرير الدرع
+🛡️ تقرير التحليل الأولي
 
 👤 {context.user_data['name']}
 📍 {context.user_data['location']}
-📊 {color} {score}%
+
+📊 النتيجة: {color} {score}%
+
+⏳ النتيجة النهائية خلال 24 ساعة
+
+📞 واتساب: 00967778160500
+💬 تليجرام: https://t.me/fan_al_prompt
+🌐 الموقع: https://sites.google.com/view/aldira-yemen
 """
 
-    query.edit_message_text(msg)
+    keyboard = [
+        [InlineKeyboardButton("📱 واتساب", url="https://wa.me/967778160500")],
+        [InlineKeyboardButton("💬 تليجرام", url="https://t.me/fan_al_prompt")],
+        [InlineKeyboardButton("🌐 الموقع", url="https://sites.google.com/view/aldira-yemen")],
+        [InlineKeyboardButton("🔄 تحليل جديد", callback_data="restart")]
+    ]
 
-    data = load_data()
-    uid = str(query.from_user.id)
+    query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
 
-    if uid not in data:
-        data[uid] = []
-
-    data[uid].append(dict(context.user_data))
-    save_data(data)
-
+    # إرسال للأدمن
     if ADMIN_ID:
         context.bot.send_message(chat_id=ADMIN_ID, text=msg)
 
-    reset_user_data(context)
+    reset_user(context)
     return ConversationHandler.END
 
+# =========================
+# ❌ إلغاء
+# =========================
 def cancel(update, context):
     update.message.reply_text("❌ تم الإلغاء")
-    reset_user_data(context)
+    reset_user(context)
     return ConversationHandler.END
 
+# =========================
+# 🔁 إعادة
+# =========================
+def restart(update, context):
+    query = update.callback_query
+    query.answer()
+
+    reset_user(context)
+
+    query.edit_message_text(
+        WELCOME_MSG,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🏠 فحص قانوني", callback_data="legal")],
+            [InlineKeyboardButton("📊 تقييم مخاطر", callback_data="risk")],
+            [InlineKeyboardButton("🔧 استشارة فنية", callback_data="technical")]
+        ])
+    )
+    return SERVICE
+
+# =========================
+# 🚀 التشغيل
+# =========================
 def main():
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
@@ -285,7 +379,9 @@ def main():
     )
 
     dp.add_handler(conv)
+    dp.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
+    print("🛡️ نظام الدرع يعمل...")
     updater.start_polling()
     updater.idle()
 
