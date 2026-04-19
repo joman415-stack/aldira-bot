@@ -4,7 +4,7 @@ import logging
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -26,13 +26,12 @@ def run_web_server():
     server = HTTPServer(('0.0.0.0', port), SimpleHandler)
     server.serve_forever()
 
-# تشغيل الخادم الوهمي في خيط منفصل ليتجاوز خطأ Port timeout
 threading.Thread(target=run_web_server, daemon=True).start()
 
 # --- 2. إعدادات البوت الأساسية ---
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-TOKEN = "8763108829:AAFhUup54-e6t3QsOMBfYemQusI9qpJlvTM"  # الأفضل استخدام Environment Variables
+TOKEN = "8763108829:AAGl10eR5hGJCnBgkF2v2lCWY7Ut7hWurnc"  # ضع التوكن في Environment Variables
 ADMIN_ID = 5068122021
 DATA_FILE = "data/clients.json"
 
@@ -67,6 +66,7 @@ WELCOME_MSG = """
 🔽 اختر الخدمة:
 """
 
+# --- دوال المحادثة ---
 def start(update, context):
     keyboard = [
         [InlineKeyboardButton("🏠 فحص قانوني", callback_data="legal")],
@@ -74,22 +74,77 @@ def start(update, context):
         [InlineKeyboardButton("🔧 استشارة فنية", callback_data="technical")]
     ]
     update.message.reply_text(
-        WELCOME_MSG, 
-        parse_mode="Markdown", 
+        WELCOME_MSG,
+        parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return SERVICE
 
-# باقي الدوال كما هي (get_name, get_location, إلخ) بدون تغيير...
+def service_selected(update, context):
+    query = update.callback_query
+    query.answer()
+    context.user_data["service"] = query.data
+    query.edit_message_text("✏️ أرسل اسمك الكامل:")
+    return NAME
+
+def get_name(update, context):
+    context.user_data["name"] = update.message.text
+    update.message.reply_text("📍 المحافظة:")
+    return LOCATION
+
+def get_location(update, context):
+    context.user_data["location"] = update.message.text
+    update.message.reply_text("👤 اسم المالك:")
+    return OWNER
+
+def get_owner(update, context):
+    context.user_data["owner"] = update.message.text
+    update.message.reply_text("📄 نوع الوثيقة (عقد/حجة/قرار):")
+    return DOC_TYPE
+
+def get_doc_type(update, context):
+    context.user_data["doc_type"] = update.message.text
+    update.message.reply_text("🔢 رقم الوثيقة:")
+    return DOC_NUM
+
+def get_doc_num(update, context):
+    context.user_data["doc_num"] = update.message.text
+    update.message.reply_text("📅 تاريخ الإصدار:")
+    return DOC_DATE
+
+def get_doc_date(update, context):
+    context.user_data["doc_date"] = update.message.text
+    update.message.reply_text("🏛️ الجهة المصدرة:")
+    return ISSUER
+
+def get_issuer(update, context):
+    context.user_data["issuer"] = update.message.text
+    keyboard = [
+        [InlineKeyboardButton("شراء", callback_data="buy")],
+        [InlineKeyboardButton("ورث", callback_data="inherit")]
+    ]
+    update.message.reply_text("⚖️ نوع الحيازة:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return INHERITANCE
+
+def get_inheritance(update, context):
+    query = update.callback_query
+    query.answer()
+    context.user_data["inheritance"] = query.data
+    keyboard = [
+        [InlineKeyboardButton("لا يوجد مشاكل", callback_data="no")],
+        [InlineKeyboardButton("يوجد مشاكل", callback_data="yes")]
+    ]
+    query.edit_message_text("⚠️ هل توجد مشاكل؟", reply_markup=InlineKeyboardMarkup(keyboard))
+    return PROBLEMS
 
 def get_problems(update, context):
     query = update.callback_query
     query.answer()
     context.user_data["problems"] = query.data
-    
-    inh = context.user_data["inheritance"]
-    prob = context.user_data["problems"]
-    
+
+    inh = context.user_data.get("inheritance", "")
+    prob = context.user_data.get("problems", "")
+
     if inh == "buy" and prob == "no":
         score, color, risk = 70, "🟢", "منخفض"
     elif inh == "buy" and prob == "yes":
@@ -98,31 +153,31 @@ def get_problems(update, context):
         score, color, risk = 50, "🟡", "متوسط"
     else:
         score, color, risk = 20, "🔴", "عالي جداً"
-    
+
     context.user_data.update({
         "score": score, "color": color, "risk": risk,
         "date": datetime.now().isoformat()
     })
-    
+
     data = load_data()
     user_id = str(query.from_user.id)
     if user_id not in data:
         data[user_id] = []
-    data[user_id].append(context.user_data)
+    data[user_id].append(context.user_data.copy())
     save_data(data)
-    
+
     msg = f"""
 🛡️ نظام الدرع v23 - تقرير تحليل عقاري
 
-👤 العميل: {context.user_data['name']}
-📍 الموقع: {context.user_data['location']}
-👤 المالك: {context.user_data['owner']}
+👤 العميل: {context.user_data.get('name','-')}
+📍 الموقع: {context.user_data.get('location','-')}
+👤 المالك: {context.user_data.get('owner','-')}
 
 📋 الوثيقة:
-• النوع: {context.user_data['doc_type']}
-• الرقم: {context.user_data['doc_num']}
-• التاريخ: {context.user_data['doc_date']}
-• المصدر: {context.user_data['issuer']}
+• النوع: {context.user_data.get('doc_type','-')}
+• الرقم: {context.user_data.get('doc_num','-')}
+• التاريخ: {context.user_data.get('doc_date','-')}
+• المصدر: {context.user_data.get('issuer','-')}
 
 ⚖️ الحيازة: {"شراء" if inh == "buy" else "ورث"}
 ⚠️ المشاكل: {"لا يوجد" if prob == "no" else "يوجد"}
@@ -135,24 +190,46 @@ def get_problems(update, context):
 📢 القناة: @fanalprompt
 🌐 الموقع: aldira-yemen.com
 """
-    
+
     keyboard = [
         [InlineKeyboardButton("📱 واتساب", url="https://wa.me/967778160500")],
         [InlineKeyboardButton("💬 تليجرام", url="https://t.me/fanalprompt")],
         [InlineKeyboardButton("🌐 الموقع", url="https://aldira-yemen.com")],
         [InlineKeyboardButton("🔄 تحليل جديد", callback_data="restart")]
     ]
-    
+
     query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-    
+
     if ADMIN_ID:
-        admin_msg = f"🔔 طلب جديد!\nمن: {context.user_data['name']}\nالنسبة: {score}% {color}"
+        admin_msg = f"🔔 طلب جديد!\nمن: {context.user_data.get('name','-')}\nالنسبة: {score}% {color}"
         try:
             context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg)
-        except:
+        except Exception:
             pass
-    
+
     return ConversationHandler.END
+
+def cancel(update, context):
+    # يدعم الاستدعاء من رسالة أو من callback
+    if update.message:
+        update.message.reply_text("❌ تم إلغاء العملية.")
+    else:
+        try:
+            update.callback_query.answer()
+            update.callback_query.edit_message_text("❌ تم إلغاء العملية.")
+        except Exception:
+            pass
+    return ConversationHandler.END
+
+def restart(update, context):
+    query = update.callback_query
+    query.answer()
+    query.edit_message_text(WELCOME_MSG, reply_markup=InlineKeyboardMarkup([
+        [InlineKeyboardButton("🏠 فحص قانوني", callback_data="legal")],
+        [InlineKeyboardButton("📊 تقييم مخاطر", callback_data="risk")],
+        [InlineKeyboardButton("🔧 استشارة فنية", callback_data="technical")]
+    ]))
+    return SERVICE
 
 def main():
     updater = Updater(TOKEN, use_context=True)
@@ -177,7 +254,7 @@ def main():
 
     dp.add_handler(conv_handler)
     dp.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
-    
+
     print("🛡️ نظام الدرع يعمل...")
     updater.start_polling()
     updater.idle()
